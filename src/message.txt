@@ -1,0 +1,93 @@
+'use client';
+
+import { useEffect, useRef, useState } from 'react';
+import { Canvas, useFrame, useLoader } from '@react-three/fiber';
+import { OrbitControls } from '@react-three/drei';
+// @ts-ignore
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
+import { Mesh } from 'three';
+import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
+
+function MeshComponent() {
+  const [width, setWidth] = useState<number>(window.innerWidth);
+
+  function handleWindowSizeChange() {
+    setWidth(window.innerWidth);
+  }
+
+  useEffect(() => {
+    window.addEventListener('resize', handleWindowSizeChange);
+    return () => {
+      window.removeEventListener('resize', handleWindowSizeChange);
+    };
+  }, []);
+
+  const isMobile = width <= 768;
+
+  const fileUrl = '/zachuri-person.glb';
+  const mesh = useRef<Mesh>(null!);
+  // const gltf = useLoader(GLTFLoader, fileUrl);
+  const gltf = useLoader(GLTFLoader, fileUrl, loader => {
+    // Load DRACOLoader
+    const dracoLoader = new DRACOLoader();
+    loader.dracoLoader = dracoLoader;
+    dracoLoader.setDecoderPath('/draco/');
+    dracoLoader.setDecoderConfig({ type: 'js' });
+    loader.setDRACOLoader(dracoLoader);
+  });
+
+  // Track cursor position
+  const cursorPosition = useRef({ x: 0, y: 0 });
+
+  if (!isMobile) {
+    // Update cursor position on mousemove
+    const handleMouseMove = (event: { clientX: number; clientY: number }) => {
+      cursorPosition.current.x = (event.clientX / window.innerWidth) * 2 - 1;
+      cursorPosition.current.y = -(event.clientY / window.innerHeight) * 2 + 1;
+    };
+
+    // Add event listener
+    window.addEventListener('mousemove', handleMouseMove);
+  }
+
+  useFrame(({ camera }) => {
+    if (!isMobile) {
+      // Calculate camera position and target based on cursor position
+      const targetX = cursorPosition.current.x * 2;
+      const targetY = cursorPosition.current.y * 2;
+
+      // Update camera position and target
+      camera.position.x = targetX;
+      camera.position.y = targetY;
+    }
+
+    if (isMobile) {
+      mesh.current.rotation.y += 0.01;
+    }
+
+    // Rotate the scene 180 degrees around the X-axis to show it upside down
+    if (gltf.scene) {
+      gltf.scene.rotation.x = Math.PI; // 180 degrees in radians
+      gltf.scene.rotation.y = Math.PI; // 180 degrees in radians
+    }
+
+    camera.lookAt(0, -2, 0); // Look at the center of the model
+  });
+
+  return (
+    <mesh ref={mesh}>
+      <primitive object={gltf.scene} />
+    </mesh>
+  );
+}
+
+export function ThreeModel() {
+  return (
+    <Canvas>
+      <OrbitControls />
+      <ambientLight />
+      <pointLight position={[10, 10, 10]} />
+      <MeshComponent />
+    </Canvas>
+  );
+}
